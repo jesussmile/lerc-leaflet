@@ -1,0 +1,139 @@
+﻿<!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset=utf-8 />
+    <title>Lerc in Leaflet</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+
+    <!-- Load Leaflet from CDN-->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.3.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.3.1/dist/leaflet-src.js"></script>
+
+    <!-- load esri leaflet and its geocoder for address/place search -->
+    <script src="https://unpkg.com/esri-leaflet@2.1.3/dist/esri-leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/esri-leaflet-geocoder@2.2.8/dist/esri-leaflet-geocoder.css">
+    <script src="https://unpkg.com/esri-leaflet-geocoder@2.2.8/dist/esri-leaflet-geocoder.js"></script>
+
+    <!--load the lerc decoder -->
+    <script src="https://unpkg.com/lerc@1.0.1/LercDecode.js"></script>
+
+    <!-- slider library-->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/8.2.1/nouislider.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/8.2.1/nouislider.min.js"></script>
+
+    <!-- load our plugin -->
+    <script src="./LercLayer.js"></script>
+
+    <style>
+      body {
+        margin:0;
+        padding:0;
+      }
+
+      #map {
+        position: absolute;
+        top:0;
+        bottom:0;
+        right:0;left:0;
+      }
+
+      #info-pane {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        min-width: 200px;
+        z-index: 500;
+        padding: 1em;
+        background: white;
+      }
+
+      .noUi-connect {
+        background: #ccc;
+      }
+    </style>
+  </head>
+  <body>
+
+  <div id="map"></div>
+  <div id="info-pane" class="leaflet-bar">
+    <div id="slider"></div>
+    <br>
+    <label id="min">
+    0 meters
+    </label><br>
+    <label id="max">
+    4000 meters
+    </label>
+
+    <hr>
+
+    <div id="pixel-value">Esri Tiled Elevation Service</div>
+  </div>
+
+  <script>
+    // create a UI slider for the end user to toggle the pixel range to display
+    var slider = document.getElementById('slider');
+    noUiSlider.create(slider, {
+      start: [0, 4000],
+      step: 100,
+      connect: true,
+      range: { 'min': 0, 'max': 8000  }
+    });
+
+    // When the slider value changes, update the input and span
+    slider.noUiSlider.on('set', function (values, handle) {
+      document.getElementById('min').innerHTML = parseInt(values[0], 10) + ' meters';
+      document.getElementById('max').innerHTML = parseInt(values[1], 10) + ' meters';
+
+      // redraw the tiles without refetching the from the server
+      for (var key in lercElevation._tiles) {
+        lercElevation.draw(lercElevation._tiles[key].el);
+      }
+    });
+
+    var southWest = L.latLng(-90, -179),
+    northEast = L.latLng(90, 179),
+    worldBounds = L.latLngBounds(southWest, northEast);
+
+    // set up the map
+    var map = L.map('map', {
+      noWrap: true,
+      minZoom: 3,
+      maxBounds: worldBounds
+    }).setView([30, 45], 3);
+
+    // Replace OpenStreetMap with ESRI Topographic layer
+    L.esri.basemapLayer('Topographic').addTo(map);
+
+    // Make the LERC layer more transparent to see the hillshading better
+    var lercElevation = new LercLayer({
+      noWrap: true,
+      attribution: 'USGS, <a href="https://github.com/Esri/lerc">LERC</a>',
+      tileSize: 256,
+      opacity: 0.5  // Increased transparency to better see the hillshading
+    });
+
+    map.on('mousemove', function (e) {
+      // the gather the x/y and z of the tile url
+      var layerPoint = map.project(e.latlng).floor();
+      var tilePoint = layerPoint.divideBy(256).floor();
+      tilePoint.z = map.getZoom();
+      // the tile data block
+      var block = lercElevation._tiles[tilePoint.x + ':' + tilePoint.y + ':' + tilePoint.z].el.decodedPixels;
+
+      // Read the data value from the block if it exists
+      if (block) {
+        var pointInTile = layerPoint.subtract(tilePoint.multiplyBy(256));
+        document.getElementById('pixel-value').innerHTML = "current elevation: " +
+                 Math.round(block.pixels[0][pointInTile.y * block.width + pointInTile.x]) + " meters";
+      } else {
+        document.getElementById('pixel-value').innerHTML = "Elevation: undefined";
+      }
+    });
+
+    L.esri.Geocoding.geosearch().addTo(map);
+    lercElevation.addTo(map);
+
+  </script>
+  </body>
+  </html>
