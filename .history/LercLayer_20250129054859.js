@@ -26,49 +26,28 @@ var LercLayer = L.GridLayer.extend({
   },
 
   draw: function (tile) {
-    if (!tile.decodedPixels) return;
-    
     var width = tile.decodedPixels.width - 1;
     var height = tile.decodedPixels.height - 1;
-    var currentMax = parseFloat(slider.noUiSlider.get()[1]);
-    var warningThreshold = currentMax - 304.8; // 1000 feet below current max
+    var min = slider.noUiSlider.get()[0];
+    var max = slider.noUiSlider.get()[1];
     var pixels = tile.decodedPixels.pixels[0];
     var mask = tile.decodedPixels.maskData;
 
     var ctx = tile.getContext('2d');
     var imageData = ctx.createImageData(width, height);
     var data = imageData.data;
-
+    var f = 256 / (max - min);
+    var pv = 0;
     for (var i = 0; i < width * height; i++) {
-        var j = i + Math.floor(i / width);
-        var elevation = pixels[j];
-        
-        if (mask && !mask[j]) {
-            // No data points are transparent
-            data[i * 4 + 3] = 0;
-            continue;
-        }
-
-        if (elevation >= currentMax) {
-            // Red for danger zone
-            data[i * 4] = 255;     // R
-            data[i * 4 + 1] = 0;   // G
-            data[i * 4 + 2] = 0;   // B
-            data[i * 4 + 3] = 255; // A
-        } 
-        else if (elevation >= warningThreshold && elevation < currentMax) {
-            // Yellow for 1000ft warning zone only
-            data[i * 4] = 255;     // R
-            data[i * 4 + 1] = 255; // G
-            data[i * 4 + 2] = 0;   // B
-            data[i * 4 + 3] = 255; // A
-        }
-        else {
-            // Transparent for everything else
-            data[i * 4 + 3] = 0;   // A
-        }
+      // Skip the last pixel in each input line
+      var j = i + Math.floor(i / width);
+      pv = (pixels[j] - min) * f;
+      data[i * 4] = pv;
+      data[i * 4 + 1] = pv;
+      data[i * 4 + 2] = pv;
+      // Mask only gets returned when missing data exists
+      data[i * 4 + 3] = (mask && !mask[j]) ? 0 : 255;
     }
-    
     ctx.putImageData(imageData, 0, 0);
   }
 })

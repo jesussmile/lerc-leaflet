@@ -102,15 +102,18 @@
       maxBounds: worldBounds
     }).setView([30, 45], 3);
 
-    // Replace OpenStreetMap with ESRI Topographic layer
-    L.esri.basemapLayer('Topographic').addTo(map);
+    // Add OpenStreetMap base layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(map);
 
-    // Make the LERC layer more transparent to see the hillshading better
+    // Make the LERC layer semi-transparent
     var lercElevation = new LercLayer({
       noWrap: true,
       attribution: 'USGS, <a href="https://github.com/Esri/lerc">LERC</a>',
       tileSize: 256,
-      opacity: 0.5  // Increased transparency to better see the hillshading
+      opacity: 0.7  // Add opacity to see the base map underneath
     });
 
     map.on('mousemove', function (e) {

@@ -49,23 +49,26 @@ var LercLayer = L.GridLayer.extend({
             continue;
         }
 
+        // Set full alpha
+        data[i * 4 + 3] = 255;
+
         if (elevation >= currentMax) {
             // Red for danger zone
             data[i * 4] = 255;     // R
             data[i * 4 + 1] = 0;   // G
             data[i * 4 + 2] = 0;   // B
-            data[i * 4 + 3] = 255; // A
         } 
-        else if (elevation >= warningThreshold && elevation < currentMax) {
-            // Yellow for 1000ft warning zone only
+        else if (elevation >= warningThreshold) {
+            // Yellow for warning zone
             data[i * 4] = 255;     // R
             data[i * 4 + 1] = 255; // G
             data[i * 4 + 2] = 0;   // B
-            data[i * 4 + 3] = 255; // A
         }
         else {
-            // Transparent for everything else
-            data[i * 4 + 3] = 0;   // A
+            // Green for safe zone
+            data[i * 4] = 0;       // R
+            data[i * 4 + 1] = 255; // G
+            data[i * 4 + 2] = 0;   // B
         }
     }
     
