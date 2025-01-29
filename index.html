@@ -26,29 +26,147 @@
 
     <style>
       body {
-        margin:0;
-        padding:0;
+        margin: 0;
+        padding: 0;
+        font-family: 'Segoe UI', Arial, sans-serif;
       }
 
       #map {
         position: absolute;
-        top:0;
-        bottom:0;
-        right:0;left:0;
+        top: 0;
+        bottom: 0;
+        right: 0;
+        left: 0;
       }
 
       #info-pane {
         position: absolute;
-        top: 10px;
-        right: 10px;
+        bottom: 20px;
+        right: 20px;
+        left: auto;
+        transform: none;
         min-width: 200px;
+        max-width: 220px;
         z-index: 500;
-        padding: 1em;
-        background: white;
+        padding: 0.8em;
+        background: rgba(255, 255, 255, 0.7);
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(5px);
+        font-size: 0.85em;
+      }
+
+      #pixel-value {
+        font-size: 0.95em;
+        color: #333;
+        margin-bottom: 10px;
+        text-align: center;
+        font-weight: 500;
+      }
+
+      .elevation-labels {
+        display: flex;
+        justify-content: space-between;
+        margin: 8px 0;
+        color: #666;
+        font-size: 0.85em;
       }
 
       .noUi-connect {
-        background: #ccc;
+        background: #2196F3;
+      }
+
+      .noUi-handle {
+        border-radius: 50%;
+        background: #2196F3;
+        box-shadow: 0 0 4px rgba(0,0,0,0.2);
+      }
+
+      .control-buttons {
+        margin-top: 10px;
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .btn {
+        padding: 4px 8px;
+        border: none;
+        border-radius: 4px;
+        background: #2196F3;
+        color: white;
+        cursor: pointer;
+        font-size: 12px;
+        transition: all 0.3s ease;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+      }
+
+      .btn:hover {
+        background: #1976D2;
+        transform: translateY(-1px);
+      }
+
+      .btn:disabled {
+        background: #e0e0e0;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .btn-group {
+        display: flex;
+        gap: 4px;
+      }
+
+      #animate-btn.active {
+        background: #f44336;
+      }
+
+      hr {
+        border: none;
+        border-top: 1px solid #eee;
+        margin: 10px 0;
+      }
+
+      .animation-controls {
+        display: flex;
+        gap: 5px;
+        margin-top: 10px;
+        justify-content: center;
+      }
+
+      .speed-control {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        margin-top: 8px;
+        font-size: 0.75em;
+      }
+
+      .speed-control select {
+        padding: 2px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        font-size: 11px;
+      }
+
+      .direction-btn {
+        padding: 2px 6px;
+        font-size: 11px;
+      }
+
+      /* Make the slider smaller */
+      .noUi-horizontal {
+        height: 8px;
+      }
+
+      .noUi-horizontal .noUi-handle {
+        width: 16px;
+        height: 16px;
+        top: -5px;
       }
     </style>
   </head>
@@ -56,18 +174,29 @@
 
   <div id="map"></div>
   <div id="info-pane" class="leaflet-bar">
-    <div id="slider"></div>
-    <br>
-    <label id="min">
-    0 meters
-    </label><br>
-    <label id="max">
-    4000 meters
-    </label>
-
-    <hr>
-
     <div id="pixel-value">Esri Tiled Elevation Service</div>
+    <div id="slider"></div>
+    <div class="elevation-labels">
+      <label id="min">0 meters</label>
+      <label id="max">4000 meters</label>
+    </div>
+    <hr>
+    <div class="control-buttons">
+      <button id="animate-btn" class="btn">Animate</button>
+      <div class="btn-group">
+        <button id="decrement-btn" class="btn">-100m</button>
+        <button id="increment-btn" class="btn">+100m</button>
+      </div>
+    </div>
+    <div class="speed-control">
+      <span>Speed:</span>
+      <select id="speed-select" class="btn">
+        <option value="400">Slow</option>
+        <option value="150" selected>Normal</option>
+        <option value="50">Fast</option>
+      </select>
+      <button id="direction-btn" class="btn direction-btn">↑</button>
+    </div>
   </div>
 
   <script>
@@ -89,6 +218,106 @@
       for (var key in lercElevation._tiles) {
         lercElevation.draw(lercElevation._tiles[key].el);
       }
+    });
+
+    // Add animation controls
+    let animationInterval;
+    let isAnimating = false;
+    let isForward = true;
+    const animateBtn = document.getElementById('animate-btn');
+    const incrementBtn = document.getElementById('increment-btn');
+    const decrementBtn = document.getElementById('decrement-btn');
+    const speedSelect = document.getElementById('speed-select');
+    const directionBtn = document.getElementById('direction-btn');
+    
+    function updateElevation(values) {
+        document.getElementById('min').innerHTML = parseInt(values[0], 10) + ' meters';
+        document.getElementById('max').innerHTML = parseInt(values[1], 10) + ' meters';
+        
+        for (var key in lercElevation._tiles) {
+            lercElevation.draw(lercElevation._tiles[key].el);
+        }
+    }
+
+    function animate() {
+        let currentMin = parseInt(slider.noUiSlider.get()[0]);
+        let currentMax = parseInt(slider.noUiSlider.get()[1]);
+        
+        if (isForward) {
+            if (currentMin >= 8000) {
+                isForward = false;
+                directionBtn.textContent = '↓';
+                return;
+            }
+            currentMin += 50;
+            currentMax += 50;
+        } else {
+            if (currentMin <= 0) {
+                isForward = true;
+                directionBtn.textContent = '↑';
+                return;
+            }
+            currentMin -= 50;
+            currentMax -= 50;
+        }
+        
+        slider.noUiSlider.set([currentMin, currentMax]);
+    }
+
+    function stopAnimation() {
+        clearInterval(animationInterval);
+        isAnimating = false;
+        animateBtn.textContent = 'Animate';
+        animateBtn.classList.remove('active');
+        incrementBtn.disabled = false;
+        decrementBtn.disabled = false;
+    }
+
+    directionBtn.addEventListener('click', () => {
+      isForward = !isForward;
+      directionBtn.textContent = isForward ? '↑' : '↓';
+      if (isAnimating) {
+        clearInterval(animationInterval);
+        animationInterval = setInterval(animate, parseInt(speedSelect.value));
+      }
+    });
+
+    speedSelect.addEventListener('change', () => {
+      if (isAnimating) {
+        clearInterval(animationInterval);
+        animationInterval = setInterval(animate, parseInt(speedSelect.value));
+      }
+    });
+
+    animateBtn.addEventListener('click', () => {
+        if (!isAnimating) {
+            isAnimating = true;
+            animateBtn.textContent = 'Stop';
+            animateBtn.classList.add('active');
+            incrementBtn.disabled = true;
+            decrementBtn.disabled = true;
+            animationInterval = setInterval(animate, parseInt(speedSelect.value));
+        } else {
+            stopAnimation();
+        }
+    });
+
+    incrementBtn.addEventListener('click', () => {
+        let [currentMin, currentMax] = slider.noUiSlider.get();
+        currentMin = parseInt(currentMin) + 100;
+        currentMax = parseInt(currentMax) + 100;
+        if (currentMax <= 8000) {
+            slider.noUiSlider.set([currentMin, currentMax]);
+        }
+    });
+
+    decrementBtn.addEventListener('click', () => {
+        let [currentMin, currentMax] = slider.noUiSlider.get();
+        currentMin = parseInt(currentMin) - 100;
+        currentMax = parseInt(currentMax) - 100;
+        if (currentMin >= 0) {
+            slider.noUiSlider.set([currentMin, currentMax]);
+        }
     });
 
     var southWest = L.latLng(-90, -179),
